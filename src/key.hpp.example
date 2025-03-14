@@ -1,0 +1,17 @@
+#if !defined(SECRET_KEY_HPP)
+#define SECRET_KEY_HPP
+
+// for esp32 dev
+// #define RX_PIN 16  // UART2 RX
+// #define TX_PIN 17  // UART2 TX
+// #define DE_RE_PIN 18 // RS485 Control Pin
+
+// for esp32s3
+#define TX_PIN 17  // UART2 TX
+#define RX_PIN 18  // UART2 RX
+#define DE_RE_PIN 8 // RS485 Control Pin
+
+// #define SSID "SSID"
+// #define PASSWORD "PASS"
+
+#endif // SECRET_KEY_HPP)
