@@ -147,7 +147,8 @@ enum GCOM {
     HIGH_SPEED_MODE_X = 0x0047,
     HIGH_SPEED_MODE_Y = 0x0048,
     HIGH_SPEED_MODE_Z = 0x0049,
-    CUTOFF_FREQUENCY = 0x0063,
+    CUTOFF_FREQUENCY_INTEGRATOR = 0x0063,
+    CUTOFF_FREQUENCY_FRAGTION = 0x0064,
     DETECTION_PERIOD = 0x0065
 };
 
@@ -222,28 +223,43 @@ class GYRO {
         }
 
         vector<uint8_t> SAVE() {
+            Data_To_Send[1] = WT;
+            Data_To_Send[2] = 0x00;
+            Data_To_Send[3] = 0x00;
+            Data_To_Send[4] = 0x00;
+            Data_To_Send[5] = 0x00;
             CRCcalculate(Data_To_Send, CRCH, CRCL);
 
             return {
-                Data_To_Send[0], 0x06, 0x00, 0x00, 0x00, 0x00, CRCH, CRCL
+                Data_To_Send[0], WT, Data_To_Send[2], Data_To_Send[3], Data_To_Send[4], Data_To_Send[5], CRCH, CRCL
             };
         }
 
         vector<uint8_t> UNLOCK() {
+            Data_To_Send[1] = WT;
+            Data_To_Send[2] = 0x00;
+            Data_To_Send[3] = 0x69;
+            Data_To_Send[4] = 0xB5;
+            Data_To_Send[5] = 0x88;
             CRCcalculate(Data_To_Send, CRCH, CRCL);
 
             return {
-                Data_To_Send[0], 0x06, 0x00, 0x69, 0xB5, 0x88, CRCH, CRCL
+                Data_To_Send[0], WT, 0x00, 0x69, 0xB5, 0x88, CRCH, CRCL
             };
         }
 
         vector<uint8_t> RESTART() {
+            Data_To_Send[1] = WT;
+            Data_To_Send[2] = 0x00;
+            Data_To_Send[3] = 0x00;
+            Data_To_Send[4] = 0x00;
+            Data_To_Send[5] = 0xFF;
             CRCcalculate(Data_To_Send, CRCH, CRCL);
 
             return {
-                Data_To_Send[0], 0x06, 0x00, 0x00, 0x00, 0xFF, CRCH, CRCL
+                Data_To_Send[0], WT, Data_To_Send[2], Data_To_Send[3], Data_To_Send[4], Data_To_Send[5], CRCH, CRCL
             };
         }
 };
 
-#endif // GYRO_HPP)
+#endif // GYRO_HPP

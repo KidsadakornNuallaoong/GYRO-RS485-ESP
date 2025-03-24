@@ -12,6 +12,7 @@
 #include "key.hpp"
 #include <PubSubClient.h>
 #include <cstdint>
+#include "SD_CARD_M.hpp"
 
 // Function template for parseRes
 template <typename T>
@@ -21,8 +22,6 @@ T parseRes(unsigned char lowByte, unsigned char highByte) {
 
 #define DADDR_DEF 0x50
 #define MQTT_MAX_SIZE 1024
-
-#define DeviceADDR "VIB_M1"
 
 HardwareSerial RS485(2); // Use UART2
 
@@ -93,20 +92,14 @@ String toJson(DataSchema g){
 void task1(void *pvParameters) {
     double VAX, VAY, VAZ;
 
-    for (;;) {
+    while (true) {
+        gyro.setCommand(ACCELERATION);
+        gyro.setData(0x0013);
+        cmd = gyro.getCommand(READ);
         // Send HEX command
         digitalWrite(DE_RE_PIN, HIGH); // Enable transmission
         delay(10);  // Allow time for RS485 to switch
-
-        // RS485.write(command, sizeof(command));
-        // Serial.print("Sent: ");
-        // for (uint8_t i = 0; i < sizeof(command); i++) {
-        //     Serial.printf("%02X ", command[i]); // Print sent data in HEX
-        // }
-        // Serial.println();
-
         RS485.write(cmd.data(), cmd.size());
-
         digitalWrite(DE_RE_PIN, LOW); // Set to receive mode
 
         if (RS485.available()) {
@@ -153,7 +146,7 @@ void task1(void *pvParameters) {
 
             // * mqtt pub
             if (!client.connected()) {
-                client.connect(DeviceADDR, mqtt_uname, mqtt_pass);
+                client.connect(DeviceADDR.c_str(), (MQTT_USER.isEmpty() ? mqtt_uname : MQTT_USER.c_str()), (MQTT_PASS.isEmpty() ? mqtt_pass : MQTT_PASS.c_str()));
             }
 
             client.publish("vibration", jsonString.c_str());
@@ -164,12 +157,13 @@ void task1(void *pvParameters) {
 
             //  reconnect
             WiFi.begin(SSID, PASSWORD);
-            if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-                Serial.println("WiFi Failed!");
-                while (1) {
-                    delay(100);
-                }
+            Serial.print("Reconnecting to WiFi");
+            while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+                Serial.print(".");
+                delay(100);
             }
+            Serial.println("");
+            Serial.println("Reconnected to the WiFi network");
         }
     }
 }
@@ -221,17 +215,97 @@ void task2(void *pvParameters) {
 void setup() {
     Serial.begin(115200);
 
-    WiFi.begin(SSID, PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.println("Connecting to WiFi..");
+    /// * setup SPI
+    SPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+    while (!SD.begin(SD_CS, SPI)) {
+        Serial.println("Card Mount Failed");
         delay(100);
     }
+    Serial.println("SD card mounted successfully");
+
+    uint8_t cardType = SD.cardType();
+    while (cardType == CARD_NONE) {
+        Serial.println("No SD card attached");
+        delay(100);
+    }
+    Serial.println("SD card initialized successfully");
+    Serial.print("Card Type: ");
+    switch (cardType) {
+        case CARD_MMC:
+        Serial.println("MMC");
+        break;
+        case CARD_SD:
+        Serial.println("SDSC");
+        break;
+        case CARD_SDHC:
+        Serial.println("SDHC");
+        break;
+        default:
+        Serial.println("UNKNOWN");
+    }
+
+    File file = SD.open("/config.txt");
+    if (!file) {
+        Serial.println("Failed to open file for reading");
+        return;
+    }
+
+    // * if file is empty loop until it's not
+    while (file.available() == 0) {
+        Serial.println("File is empty");
+        delay(100);
+    }
+
+    Serial.println("Reading file");
+    Serial.println("SIZE: " + String(file.size()) + " bytes");
+    Serial.println("LENGTH: " + String(file.available()));
+
+    while (file.available()){
+        line = file.readStringUntil('\n');
+        line.trim();
+
+        if (line.startsWith("DEVICE_ADDR=")) {
+            DeviceADDR = stringGuard(line.substring(12));
+        } else if (line.startsWith("SSID=")) {
+            SSID = stringGuard(line.substring(5));
+        } else if (line.startsWith("PASSWORD=")) {
+            PASSWORD = stringGuard(line.substring(9));
+        } else if (line.startsWith("MQTT_SERVER=")) {
+            MQTT_SERVER = stringGuard(line.substring(12));
+        } else if (line.startsWith("MQTT_USER=")) {
+            MQTT_USER = stringGuard(line.substring(10));
+        } else if (line.startsWith("MQTT_PASS=")) {
+            MQTT_PASS = stringGuard(line.substring(10));
+        } else if (line.startsWith("MQTT_TOPIC=")) {
+            MQTT_TOPIC = stringGuard(line.substring(11));
+        } else if (line.startsWith("MQTT_PORT=")) {
+            MQTT_PORT = stringGuard(line.substring(10)).toInt();
+        }
+    }
+    
+    file.close();
+    
+    Serial.println("Loaded configuration");
+
+    while (DeviceADDR.isEmpty()) {
+        Serial.println("Device Address is empty, please set it first");
+        delay(100);
+    }
+
+    // * setup WIFI
+    WiFi.begin(SSID, PASSWORD);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(100);
+    }
+    Serial.println("");
     Serial.println("Connected to the WiFi network");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
 
     // * connect to mqtt
-    client.setServer(mqtt_server, 1883);
+    client.setServer((MQTT_SERVER.isEmpty() ? mqtt_server : MQTT_SERVER.c_str()), MQTT_PORT);
     client.setCallback(callback);
     client.setBufferSize(MQTT_MAX_SIZE);
 
@@ -244,9 +318,6 @@ void setup() {
     // gyro.setData(ALL_AXIS);
     D.DeviceAddress = std::string(String(DADDR_DEF, HEX).c_str());
     gyro.setDeviceAddress(DADDR_DEF);
-    gyro.setCommand(ACCELERATION);
-    gyro.setData(0x0013);
-    cmd = gyro.getCommand(READ);
 
     // create task 1
     xTaskCreatePinnedToCore(
