@@ -1,6 +1,8 @@
 #if !defined(SECRET_KEY_HPP)
 #define SECRET_KEY_HPP
 
+String DeviceADDR = "";
+
 // for esp32 dev
 // #define RX_PIN 16  // UART2 RX
 // #define TX_PIN 17  // UART2 TX
@@ -11,7 +13,20 @@
 #define RX_PIN 18  // UART2 RX
 #define DE_RE_PIN 8 // RS485 Control Pin
 
-// #define SSID "SSID"
-// #define PASSWORD "PASS"
+String SSID;
+String PASSWORD;
+
+const int mqtt_port = 0;
+const char *mqtt_server = "0.0.0.0";
+const char *mqtt_uname = "test";
+const char *mqtt_pass = "test";
+const char *mqtt_topic = "example";
+
+// * user configuration
+int MQTT_PORT = 0;
+String MQTT_SERVER = "";
+String MQTT_USER = "";
+String MQTT_PASS = "";
+String MQTT_TOPIC = "";
 
 #endif // SECRET_KEY_HPP)
